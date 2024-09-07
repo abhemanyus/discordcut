@@ -60,8 +60,17 @@ async fn main() -> anyhow::Result<()> {
                 continue;
             }
             println!("{}", message.content);
-            // let sentence: String = fake::faker::lorem::raw::Sentence(EN, 8..16).fake();
-            let sentence = "\u{200B}";
+            let sentence = match get_article(&client).await {
+                Ok(article) => format!("# {}\n\n> {}\n", article.title, article.extract),
+                Err(err) => {
+                    println!(
+                        "failed to get article, falling back on lorem ipsum. {:?}",
+                        err
+                    );
+
+                    fake::faker::lorem::raw::Sentence(EN, 8..16).fake()
+                }
+            };
             let Ok(_) = edit_message(&sentence, channel_id, message_id, &client).await else {
                 println!("failed to edit, skipping...");
                 continue;
@@ -151,4 +160,84 @@ struct RealMsg {
 struct MessageResponse {
     total_results: i64,
     messages: Vec<(Msg,)>,
+}
+
+#[derive(Debug, serde::Deserialize, Clone)]
+struct Article {
+    title: String,
+    extract: String,
+}
+
+#[derive(serde::Deserialize)]
+struct ArticleReq {
+    query: ArticleReqQuery,
+}
+
+#[derive(serde::Deserialize)]
+struct ArticleReqQuery {
+    pages: Vec<Article>,
+}
+
+async fn get_article(client: &Client) -> anyhow::Result<Article> {
+    let article_list: ArticleList = client
+        .get("https://en.uncyclopedia.co/w/api.php")
+        .query(&[
+            ("action", "query"),
+            ("format", "json"),
+            ("list", "random"),
+            ("rnlimit", "1"),
+            ("rnnamespace", "0"),
+        ])
+        .send()
+        .await?
+        .json()
+        .await?;
+    let article = article_list
+        .query
+        .random
+        .first()
+        .context("no random articles found")?;
+    let article_req: ArticleReq = client
+        .get("https://en.uncyclopedia.co/w/api.php")
+        .query(&[
+            ("action", "query"),
+            ("prop", "extracts"),
+            ("exsentences", "10"),
+            ("exlimit", "1"),
+            ("titles", &article.title),
+            ("explaintext", "1"),
+            ("formatversion", "2"),
+            ("format", "json"),
+        ])
+        .send()
+        .await?
+        .json()
+        .await?;
+    Ok(article_req
+        .query
+        .pages
+        .first()
+        .cloned()
+        .context("article not found")?)
+}
+
+#[derive(serde::Deserialize)]
+struct ArticleList {
+    query: ArticleQuery,
+}
+#[derive(serde::Deserialize)]
+struct ArticleQuery {
+    random: Vec<ArticleListing>,
+}
+#[derive(serde::Deserialize)]
+struct ArticleListing {
+    id: i32,
+    title: String,
+}
+
+#[tokio::test]
+async fn test_artcle() {
+    let client = Client::new();
+    let article = get_article(&client).await.unwrap();
+    println!("{:?}", article);
 }
