@@ -206,10 +206,10 @@ async fn get_article(client: &Client) -> anyhow::Result<Article> {
         .query(&[
             ("action", "query"),
             ("prop", "extracts"),
-            ("exsentences", "10"),
+            ("exsentences", "4"),
             ("exlimit", "1"),
             ("titles", &article.title),
-            ("explaintext", "1"),
+            ("explaintext", "2"),
             ("formatversion", "2"),
             ("format", "json"),
         ])
