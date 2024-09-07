@@ -61,7 +61,11 @@ async fn main() -> anyhow::Result<()> {
             }
             println!("{}", message.content);
             let sentence = match get_article(&client).await {
-                Ok(article) => format!("# {}\n\n> {}\n", article.title, article.extract),
+                Ok(article) => format!(
+                    "# {}\n\n> {}\n",
+                    article.title,
+                    article.extract.replace("==", "**")
+                ),
                 Err(err) => {
                     println!(
                         "failed to get article, falling back on lorem ipsum. {:?}",
